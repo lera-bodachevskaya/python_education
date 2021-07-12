@@ -1,84 +1,69 @@
-import os
+import json
 import argparse
 
-from cv import Cv
-from user_skimage import Skimage
+import requests
 
-import user_exeptions as ex
+import user_exceptions as ex
+
+url = "https://mickschroeder.com/api/citation/cite.php"
+desc = 'Citation Generator'
+args = [{'name': '-id',
+         'type': str,
+         'dest': 'id',
+         'required': True,
+         'help': 'publication id'}]
+
+
+def create_parser(desc, args):
+    parser = argparse.ArgumentParser(description=desc)
+    for arg in args:
+        parser.add_argument(arg['name'], type=arg['type'], dest=arg['dest'], required=arg['required'], help=arg['help'])
+    return parser
+
+
+def parse_args(parser):
+    args = parser.parse_args()
+    return args
+
+
+def get_json(req):
+    try:
+        result = req.json()
+
+    except json.decoder.JSONDecodeError as error:
+        print("JSON Decode Error: {}".format(error))
+
+    return result
+
+
+def get_request(url, params):
+    try:
+        req = requests.get(url, params=params)
+
+    except requests.exceptions.MissingSchema as error:
+        print("Missing Schema error: {}".format(error))
+    except requests.exceptions.ConnectionError as error:
+        print("Connecting error: {}".format(error))
+    except requests.exceptions.HTTPError as error:
+        print("HTTP Error: {}".format(error))
+    except requests.exceptions.InvalidURL as error:
+        print("Invalid URL: {}".format(error))
+
+    return req
+
+
+def print_result(result):
+    if result['html_citation'] == '' or result['html_citation'] == 'Not Found.':
+        print("No result was found for this query. Try another -id")
+    else:
+        print(result['html_citation'])
+
 
 if __name__ == '__main__':
+    parser = create_parser(desc, args)
+    args = parse_args(parser)
 
-    commands = ["info", "get_rgb", "convert_to_bw", "histogram", "thresholding", "morphology", "segmentation"]
+    req = get_request(url, [("q", args.id)])
+    result = get_json(req)
 
-    parser = argparse.ArgumentParser(description='Check images')
-    parser.add_argument('-i', type=str, dest="img_path", required=True, help='path to image')
-    parser.add_argument('-c', type=str, dest="command", required=True,
-                        help='command to be done with the image (info, get_rgb, convert_to_bw, histogram, thresholding, morphology, segmentation')
-    parser.add_argument('-l', type=str, dest="lib", required=True, help='library (cv2, skimage)')
-    parser.add_argument('-x', type=int, dest="x_pixel", required=False, help='pixel x-coordinate')
-    parser.add_argument('-y', type=int, dest="y_pixel", required=False, help='pixel y-coordinate')
-    parser.add_argument('-s', type=str, dest="save_path", required=False, help='path where you want to save the image')
-    parser.add_argument('-rw', type=bool, dest="rewrite", required=False, help='rewrite file (True or False)')
-
-    args = parser.parse_args()
-
-    if args.command not in commands:
-        print("args error: argument -c must be correct (enter --help to see details)")
-
-    else:
-        if args.lib == "cv2":
-            try:
-                cv = Cv(args.img_path, args.rewrite)
-            except ex.FileError as fe:
-                print("file error: {} (enter --help for details)".format(fe.txt))
-
-            def_dict = {
-                "info": cv.info,
-                "get_rgb": cv.get_rgb,
-                "convert_to_bw": cv.convert_to_bw,
-                "histogram": cv.histogram,
-                "thresholding": cv.thresholding,
-                "morphology": cv.morphology,
-                "segmentation": cv.segmentation
-            }
-
-            try:
-                def_dict[args.command](x=args.x_pixel, y=args.y_pixel, save_path=args.save_path)
-
-            except ex.ArgumentsError as ae:
-                print("args error: {} (enter --help for details)".format(ae.txt))
-            except ex.FileError as fe:
-                print("file error: {} (enter --help for details)".format(fe.txt))
-            except ex.ImageError as ie:
-                print("image error: {} (enter --help for details)".format(ie.txt))
-            except ex.ConversionError as ce:
-                print("conversion error: {} (enter --help for details)".format(ce.txt))
-
-        elif args.lib == "skimage":
-            skimage = Skimage(args.img_path)
-
-            def_dict = {
-                "info": skimage.info,
-                "get_rgb": skimage.get_rgb,
-                "convert_to_bw": skimage.convert_to_bw,
-                "histogram": skimage.histogram,
-                "thresholding": skimage.thresholding,
-                "morphology": skimage.morphology,
-                "segmentation": skimage.segmentation
-            }
-
-            try:
-                def_dict[args.command](x=args.x_pixel, y=args.y_pixel, save_path=args.save_path)
-
-            except ex.ArgumentsError as ae:
-                print("args error: {} (enter --help for details)".format(ae.txt))
-            except ex.FileError as fe:
-                print("file error: {} (enter --help for details)".format(fe.txt))
-            except ex.ImageError as ie:
-                print("image error: {} (enter --help for details)".format(ie.txt))
-            except ex.ConversionError as ce:
-                print("conversion error: {} (enter --help for details)".format(ce.txt))
-
-        else:
-            print("args error: argument -l must be correct (enter --help for details)")
-
+    print_result(result)
